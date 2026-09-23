@@ -1,0 +1,204 @@
+import 'package:flutter/material.dart';
+import '../graph/graph_topology.dart';
+import '../graph/localized_string.dart';
+import '../theme/schema_ui_theme.dart';
+import 'schema_widget_registry.dart';
+
+/// Universal dynamic UI widget that reflects ANY Schema.org entity dynamically.
+class AutoSchemaWidget extends StatelessWidget {
+  final SchemaEntity entity;
+  final Locale? locale;
+  final SchemaUiTheme theme;
+  final void Function(String id)? onEntityTap;
+
+  const AutoSchemaWidget({
+    super.key,
+    required this.entity,
+    this.locale,
+    this.theme = const SchemaUiTheme(),
+    this.onEntityTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Check if custom builder is registered in registry for entity types
+    final customBuilder = SchemaWidgetRegistry.instance.getBuilderForTypes(entity.types);
+    if (customBuilder != null) {
+      return customBuilder(context, entity, locale: locale, theme: theme, onEntityTap: onEntityTap);
+    }
+
+    // Default Universal Dynamic Schema Card
+    return Card(
+      elevation: theme.cardElevation,
+      color: theme.cardBackgroundColor,
+      margin: theme.cardMargin,
+      shape: RoundedRectangleBorder(borderRadius: theme.borderRadius),
+      child: Padding(
+        padding: theme.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHeader(context),
+            const Divider(height: 24),
+            _buildPropertiesList(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final title = entity.getStringProperty('name', locale: locale, defaultValue: '').isNotEmpty
+        ? entity.getStringProperty('name', locale: locale)
+        : entity.getStringProperty('headline', locale: locale, defaultValue: entity.primaryType);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: entity.types.map((t) => _buildTypeBadge(t)).toList(),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          title,
+          style: theme.headerTextStyle,
+        ),
+        if (entity.getStringProperty('description', locale: locale).isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            entity.getStringProperty('description', locale: locale),
+            style: theme.bodyTextStyle,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTypeBadge(String typeName) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.accentBadgeColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        typeName,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: theme.primaryColor,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPropertiesList(BuildContext context) {
+    final List<Widget> propWidgets = [];
+
+    entity.properties.forEach((key, value) {
+      if (key == 'name' || key == 'headline' || key == 'description') return; // already rendered in header
+
+      final propWidget = _renderPropertyValue(context, key, value);
+      if (propWidget != null) {
+        propWidgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: propWidget,
+        ));
+      }
+    });
+
+    if (propWidgets.isEmpty) {
+      return Text('No additional attributes.', style: theme.captionTextStyle);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: propWidgets,
+    );
+  }
+
+  Widget? _renderPropertyValue(BuildContext context, String key, dynamic value) {
+    if (value == null) return null;
+
+    final formattedKey = _formatPropertyName(key);
+
+    if (value is SchemaEntity) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$formattedKey:', style: TextStyle(fontWeight: FontWeight.w600, color: theme.subtitleColor)),
+          const SizedBox(height: 4),
+          InkWell(
+            onTap: value.id != null && onEntityTap != null ? () => onEntityTap!(value.id!) : null,
+            child: AutoSchemaWidget(entity: value, locale: locale, theme: theme, onEntityTap: onEntityTap),
+          ),
+        ],
+      );
+    }
+
+    if (value is List) {
+      if (value.isEmpty) return null;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$formattedKey (${value.length}):', style: TextStyle(fontWeight: FontWeight.w600, color: theme.subtitleColor)),
+          const SizedBox(height: 4),
+          ...value.map((item) => Padding(
+            padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+            child: _renderSingleValue(context, key, item),
+          )),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            '$formattedKey:',
+            style: TextStyle(fontWeight: FontWeight.w600, color: theme.subtitleColor, fontSize: 13),
+          ),
+        ),
+        Expanded(
+          child: _renderSingleValue(context, key, value),
+        ),
+      ],
+    );
+  }
+
+  Widget _renderSingleValue(BuildContext context, String key, dynamic item) {
+    if (item is SchemaEntity) {
+      return InkWell(
+        onTap: item.id != null && onEntityTap != null ? () => onEntityTap!(item.id!) : null,
+        child: AutoSchemaWidget(entity: item, locale: locale, theme: theme, onEntityTap: onEntityTap),
+      );
+    }
+
+    final strVal = LocalizedString.from(item).resolve(locale);
+
+    if (key == 'url' || key == 'sameAs' || key == 'image') {
+      return Text(
+        strVal,
+        style: TextStyle(color: theme.primaryColor, decoration: TextDecoration.underline, fontSize: 13),
+      );
+    }
+
+    return Text(
+      strVal,
+      style: theme.bodyTextStyle,
+    );
+  }
+
+  String _formatPropertyName(String key) {
+    if (key.isEmpty) return '';
+    final result = key.replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(0)}');
+    return result[0].toUpperCase() + result.substring(1);
+  }
+}
