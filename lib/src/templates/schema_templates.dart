@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../graph/graph_topology.dart';
 import '../theme/schema_ui_theme.dart';
-import '../ui/auto_schema_widget.dart';
 import '../ui/schema_widget_registry.dart';
 
 /// Pre-built template widgets for common Schema.org types while serving as examples.
@@ -311,7 +310,7 @@ class SchemaTemplates {
         padding: effTheme.cardPadding,
         child: Row(
           children: [
-            Icon(Icons.location_on_outlined, color: Colors.redAccent, size: 28),
+            const Icon(Icons.location_on_outlined, color: Colors.redAccent, size: 28),
             const SizedBox(width: 12),
             Expanded(
               child: Text(name, style: effTheme.headerTextStyle.copyWith(fontSize: 16)),

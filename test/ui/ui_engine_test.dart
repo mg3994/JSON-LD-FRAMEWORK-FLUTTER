@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:schema_org_flutter/src/graph/graph_topology.dart';
-import 'package:schema_org_flutter/src/theme/schema_ui_theme.dart';
 import 'package:schema_org_flutter/src/ui/auto_schema_widget.dart';
 import 'package:schema_org_flutter/src/ui/schema_ld_widget.dart';
 import 'package:schema_org_flutter/src/ui/schema_widget_registry.dart';
