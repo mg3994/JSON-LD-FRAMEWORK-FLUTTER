@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Resolved localized string with fallback and pluralization support.
+/// Resolved localized string with fallback, direction (LTR/RTL), and pluralization support.
 class LocalizedString {
   final Map<String, String> values; // e.g. {'en': 'Apple', 'fr': 'Pomme', 'default': 'Apple'}
+  final String? direction; // 'ltr' or 'rtl'
 
-  LocalizedString(this.values);
+  LocalizedString(this.values, {this.direction});
 
   factory LocalizedString.from(dynamic raw) {
     if (raw == null) return LocalizedString({});
@@ -14,11 +15,12 @@ class LocalizedString {
     }
 
     if (raw is Map) {
-      // Check standard JSON-LD language object: {"@value": "Apple", "@language": "en"}
+      // Check standard JSON-LD language object: {"@value": "Apple", "@language": "en", "@direction": "ltr"}
       if (raw.containsKey('@value')) {
         final val = raw['@value'].toString();
         final lang = raw['@language']?.toString() ?? 'default';
-        return LocalizedString({lang: val});
+        final dir = raw['@direction']?.toString();
+        return LocalizedString({lang: val}, direction: dir);
       }
 
       final Map<String, String> map = {};
@@ -30,23 +32,32 @@ class LocalizedString {
 
     if (raw is List) {
       final Map<String, String> map = {};
+      String? foundDir;
       for (final item in raw) {
         if (item is Map && item.containsKey('@value')) {
           final val = item['@value'].toString();
           final lang = item['@language']?.toString() ?? 'default';
+          if (item.containsKey('@direction')) {
+            foundDir = item['@direction'].toString();
+          }
           map[lang] = val;
         } else if (item is String) {
           map['default'] = item;
         }
       }
-      return LocalizedString(map);
+      return LocalizedString(map, direction: foundDir);
     }
 
     return LocalizedString({'default': raw.toString()});
   }
 
+  TextDirection? get textDirection {
+    if (direction == 'rtl') return TextDirection.rtl;
+    if (direction == 'ltr') return TextDirection.ltr;
+    return null;
+  }
+
   /// Resolves the string value matching the provided Flutter [locale].
-  /// Supports BCP 47 language matching (e.g., 'en-US' -> 'en') and fallback options.
   String resolve(Locale? locale, {String? defaultLanguage = 'en', int? count}) {
     if (values.isEmpty) return '';
 
@@ -75,9 +86,7 @@ class LocalizedString {
 
   String _applyPlural(String template, int? count) {
     if (count == null) return template;
-    // Simple template pluralization substitution if "{count}" or "{n}" present
-    var res = template.replaceAll('{count}', count.toString()).replaceAll('{n}', count.toString());
-    return res;
+    return template.replaceAll('{count}', count.toString()).replaceAll('{n}', count.toString());
   }
 
   @override

@@ -9,13 +9,36 @@ Covers the complete official Schema.org ontology specification (`https://schema.
 ## 🌟 Key Features
 
 - **100% Schema.org Specification Coverage**: Dynamically parses classes, subclasses (`subClassOf`), properties, and ranges directly from the official Schema.org JSON-LD ontology.
+- **Full JSON-LD Keyword Engine**: Native support for `@context`, `@id`, `@type`, `@graph`, `@value`, `@language`, `@direction`, `@reverse`, `@list`, `@set`, `@included`, `@nest`, `@index`, `@vocab`, and `@base`.
 - **Universal Dynamic Renderer (`AutoSchemaWidget`)**: Renders clean, responsive, and accessible Flutter cards for **ANY** arbitrary Schema.org entity.
 - **Strict Data Type Validation & Reporting**: Validates ISO 8601 dates/durations, ISO 4217 currency codes, and absolute URIs with customizable `ValidationMode` (`strict`, `warning`, `permissive`).
 - **Graph Topology Engine**: Supports `@graph` array payloads, identity anchoring (`@id`), cross-entity linking, and multi-typed entities (`"@type": ["Restaurant", "TouristAttraction"]`).
-- **Localization & Pluralization**: Automatically handles language-tagged string values (`{"@value": "Apple", "@language": "en"}`), Flutter `Locale` matching, and pluralization templates (`{count}`).
+- **Localization & Pluralization**: Automatically handles language-tagged string values (`{"@value": "Apple", "@language": "en"}`), text direction (`@direction` LTR/RTL), Flutter `Locale` matching, and pluralization templates (`{count}`).
 - **Custom Widget Registry**: Override UI rendering for any Schema.org `@type` or property using `SchemaWidgetRegistry`.
 - **Pre-packaged UI Templates**: Includes standard responsive UI widgets for common types (`Article`, `TechArticle`, `Product`, `Person`, `Organization`, `Event`, `Recipe`, `Place`, `PropertyValue`).
 - **CI/CD Workflows**: Ready-to-use GitHub Actions for linting, static analysis, unit testing, dry-run package publishing, and web demo deployment.
+
+---
+
+## 📖 Complete JSON-LD Keyword Specification Guide
+
+The framework implements comprehensive support for all core JSON-LD W3C specifications and Schema.org conventions:
+
+| Keyword | Description | Usage Example in JSON-LD | Framework Processing Behavior |
+| :--- | :--- | :--- | :--- |
+| `@context` | Sets vocabulary context or prefixes | `"@context": "https://schema.org"` | Resolves custom term prefixes and default vocabularies. |
+| `@id` | Anchor URI identifier | `"@id": "https://example.com/#author"` | Anchors entity nodes in `GraphTopology` graph map. |
+| `@type` | Canonical entity class / multi-typing | `"@type": ["Restaurant", "Place"]` | Dynamic-casts types & matches `SchemaWidgetRegistry` builders. |
+| `@graph` | Interconnected entity array | `"@graph": [{...}, {...}]` | Unpacks entity graph and builds cross-references. |
+| `@value` | Value object wrapper | `{"@value": "Apple", "@language": "en"}` | Extracted by `LocalizedString` engine. |
+| `@language` | BCP 47 language tag | `{"@value": "Pomme", "@language": "fr"}` | Matches against active Flutter `Locale`. |
+| `@direction` | Text reading order | `{"@value": "مرحبا", "@direction": "rtl"}` | Applies `TextDirection.rtl` or `TextDirection.ltr`. |
+| `@reverse` | Inverse relation linking | `"@reverse": {"author": {...}}` | Renders inverse relation chips ("Referenced by"). |
+| `@nest` | Groups properties under nested map | `"@nest": {"price": "99"}` | Flattens nested fields onto parent entity properties. |
+| `@list` | Preserves ordered sequences | `"itemListElement": {"@list": [...]}` | Preserves strict element ordering in UI lists. |
+| `@set` | Unordered set collection | `"keywords": {"@set": ["AI", "Dart"]}` | Normalizes array items cleanly. |
+| `@included` | Detached graph nodes | `"@included": [{...}]` | Registers unlinked entities into `GraphTopology`. |
+| `@vocab` | Default vocabulary IRI | `"@vocab": "https://schema.org/"` | Expands non-prefixed property names to absolute URIs. |
 
 ---
 

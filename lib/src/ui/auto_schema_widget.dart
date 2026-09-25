@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../graph/graph_topology.dart';
 import '../graph/localized_string.dart';
 import '../theme/schema_ui_theme.dart';
@@ -42,6 +43,10 @@ class AutoSchemaWidget extends StatelessWidget {
             _buildHeader(context),
             const Divider(height: 24),
             _buildPropertiesList(context),
+            if (entity.reverseProperties.isNotEmpty) ...[
+              const Divider(height: 24),
+              _buildReversePropertiesList(context),
+            ],
           ],
         ),
       ),
@@ -52,6 +57,9 @@ class AutoSchemaWidget extends StatelessWidget {
     final title = entity.getStringProperty('name', locale: locale, defaultValue: '').isNotEmpty
         ? entity.getStringProperty('name', locale: locale)
         : entity.getStringProperty('headline', locale: locale, defaultValue: entity.primaryType);
+
+    final descLocStr = LocalizedString.from(entity.getProperty('description'));
+    final descText = descLocStr.resolve(locale);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,12 +73,14 @@ class AutoSchemaWidget extends StatelessWidget {
         Text(
           title,
           style: theme.headerTextStyle,
+          textDirection: descLocStr.textDirection,
         ),
-        if (entity.getStringProperty('description', locale: locale).isNotEmpty) ...[
+        if (descText.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
-            entity.getStringProperty('description', locale: locale),
+            descText,
             style: theme.bodyTextStyle,
+            textDirection: descLocStr.textDirection,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
@@ -101,7 +111,7 @@ class AutoSchemaWidget extends StatelessWidget {
     final List<Widget> propWidgets = [];
 
     entity.properties.forEach((key, value) {
-      if (key == 'name' || key == 'headline' || key == 'description') return; // already rendered in header
+      if (key == 'name' || key == 'headline' || key == 'description') return; // rendered in header
 
       final propWidget = _renderPropertyValue(context, key, value);
       if (propWidget != null) {
@@ -119,6 +129,33 @@ class AutoSchemaWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: propWidgets,
+    );
+  }
+
+  Widget _buildReversePropertiesList(BuildContext context) {
+    final List<Widget> reverseWidgets = [];
+
+    entity.reverseProperties.forEach((key, value) {
+      final formattedKey = _formatPropertyName(key);
+      reverseWidgets.add(Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.swap_horizontal_circle_outlined, size: 14, color: theme.secondaryColor),
+              const SizedBox(width: 4),
+              Text('Referenced by $formattedKey:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: theme.secondaryColor)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _renderSingleValue(context, key, value),
+        ],
+      ));
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: reverseWidgets,
     );
   }
 
@@ -181,7 +218,8 @@ class AutoSchemaWidget extends StatelessWidget {
       );
     }
 
-    final strVal = LocalizedString.from(item).resolve(locale);
+    final locStr = LocalizedString.from(item);
+    final strVal = locStr.resolve(locale);
 
     if (key == 'url' || key == 'sameAs' || key == 'image') {
       return Text(
@@ -193,6 +231,7 @@ class AutoSchemaWidget extends StatelessWidget {
     return Text(
       strVal,
       style: theme.bodyTextStyle,
+      textDirection: locStr.textDirection,
     );
   }
 

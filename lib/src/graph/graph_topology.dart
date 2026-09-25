@@ -1,3 +1,4 @@
+import '../ontology/json_ld_context.dart';
 import 'localized_string.dart';
 
 /// Represents a resolved Schema.org Entity in the graph.
@@ -5,21 +6,21 @@ class SchemaEntity {
   final String? id;
   final List<String> types;
   final Map<String, dynamic> properties;
+  final Map<String, dynamic> reverseProperties; // Stores @reverse inverse links
 
   SchemaEntity({
     this.id,
     required this.types,
     required this.properties,
-  });
+    Map<String, dynamic>? reverseProperties,
+  }) : reverseProperties = reverseProperties ?? {};
 
   String get primaryType => types.isNotEmpty ? types.first : 'Thing';
 
   bool isType(String typeName) => types.contains(typeName);
 
-  /// Helper to safely retrieve property value.
   dynamic getProperty(String name) => properties[name];
 
-  /// Resolves localized string property value.
   String getStringProperty(String name, {dynamic locale, String? defaultValue = ''}) {
     final val = properties[name];
     if (val == null) return defaultValue ?? '';
@@ -27,7 +28,6 @@ class SchemaEntity {
     return locStr.resolve(locale, count: null);
   }
 
-  /// Returns list of entity or primitive values for property.
   List<dynamic> getListProperty(String name) {
     final val = properties[name];
     if (val == null) return [];
@@ -36,10 +36,11 @@ class SchemaEntity {
   }
 }
 
-/// Dynamic JSON-LD Graph Topology Engine resolving @id references and multi-typed entities.
+/// Dynamic JSON-LD Graph Topology Engine resolving keywords, @reverse, @nest, @list, and @included nodes.
 class GraphTopology {
   final Map<String, SchemaEntity> _entityMap = {};
   final List<SchemaEntity> rootEntities = [];
+  late JsonLdContext context;
 
   GraphTopology._();
 
@@ -61,11 +62,18 @@ class GraphTopology {
 
     if (jsonLd is! Map<String, dynamic>) return;
 
-    // Check @graph array
+    // Parse context
+    context = JsonLdContext.parse(jsonLd['@context']);
+
+    // Process top-level @included
+    if (jsonLd.containsKey('@included')) {
+      _parseIncludedNodes(jsonLd['@included']);
+    }
+
+    // Process top-level @graph array
     if (jsonLd.containsKey('@graph')) {
       final graphArray = jsonLd['@graph'];
       if (graphArray is List) {
-        // First pass: collect all entities into entityMap
         for (final item in graphArray) {
           if (item is Map<String, dynamic>) {
             final entity = _rawToEntity(item);
@@ -87,28 +95,93 @@ class GraphTopology {
     rootEntities.add(entity);
   }
 
+  void _parseIncludedNodes(dynamic included) {
+    if (included is List) {
+      for (final item in included) {
+        if (item is Map<String, dynamic>) {
+          final entity = _rawToEntity(item);
+          if (entity.id != null) {
+            _entityMap[entity.id!] = entity;
+          }
+        }
+      }
+    } else if (included is Map<String, dynamic>) {
+      final entity = _rawToEntity(included);
+      if (entity.id != null) {
+        _entityMap[entity.id!] = entity;
+      }
+    }
+  }
+
   SchemaEntity _rawToEntity(Map<String, dynamic> raw) {
     final id = raw['@id']?.toString();
     final dynamic typeVal = raw['@type'];
 
     List<String> types = [];
     if (typeVal is List) {
-      types = typeVal.map((e) => _cleanType(e.toString())).toList();
+      types = typeVal.map((e) => context.compactIri(e.toString())).toList();
     } else if (typeVal != null) {
-      types = [_cleanType(typeVal.toString())];
+      types = [context.compactIri(typeVal.toString())];
     }
 
     final Map<String, dynamic> props = {};
-    raw.forEach((k, v) {
-      if (k.startsWith('@')) return;
-      props[_cleanPropKey(k)] = _resolveNodeValues(v);
-    });
+    final Map<String, dynamic> reverseProps = {};
 
-    return SchemaEntity(id: id, types: types, properties: props);
+    _extractPropertiesAndNest(raw, props, reverseProps);
+
+    return SchemaEntity(id: id, types: types, properties: props, reverseProperties: reverseProps);
+  }
+
+  void _extractPropertiesAndNest(
+    Map<String, dynamic> node,
+    Map<String, dynamic> targetProps,
+    Map<String, dynamic> targetReverse,
+  ) {
+    node.forEach((k, v) {
+      if (k == '@context' || k == '@id' || k == '@type') return;
+
+      if (k == '@nest') {
+        if (v is Map<String, dynamic>) {
+          _extractPropertiesAndNest(v, targetProps, targetReverse);
+        } else if (v is List) {
+          for (final nestItem in v) {
+            if (nestItem is Map<String, dynamic>) {
+              _extractPropertiesAndNest(nestItem, targetProps, targetReverse);
+            }
+          }
+        }
+        return;
+      }
+
+      if (k == '@reverse') {
+        if (v is Map<String, dynamic>) {
+          v.forEach((revKey, revVal) {
+            targetReverse[context.compactIri(revKey)] = _resolveNodeValues(revVal);
+          });
+        }
+        return;
+      }
+
+      final cleanKey = context.compactIri(k);
+      targetProps[cleanKey] = _resolveNodeValues(v);
+    });
   }
 
   dynamic _resolveNodeValues(dynamic val) {
     if (val is Map<String, dynamic>) {
+      if (val.containsKey('@value')) {
+        return val;
+      }
+      if (val.containsKey('@list')) {
+        final listContent = val['@list'];
+        if (listContent is List) {
+          return listContent.map((item) => _resolveNodeValues(item)).toList();
+        }
+        return listContent;
+      }
+      if (val.containsKey('@set')) {
+        return _resolveNodeValues(val['@set']);
+      }
       if (val.containsKey('@id') && val.keys.length == 1) {
         final refId = val['@id'].toString();
         return _entityMap[refId] ?? val;
@@ -128,16 +201,4 @@ class GraphTopology {
   }
 
   SchemaEntity? getEntityById(String id) => _entityMap[id];
-
-  String _cleanType(String t) {
-    if (t.startsWith('schema:')) return t.substring(7);
-    if (t.startsWith('https://schema.org/')) return t.substring(19);
-    return t;
-  }
-
-  String _cleanPropKey(String k) {
-    if (k.startsWith('schema:')) return k.substring(7);
-    if (k.startsWith('https://schema.org/')) return k.substring(19);
-    return k;
-  }
 }
