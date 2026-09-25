@@ -3,7 +3,9 @@ import 'package:schema_org_flutter/schema_org_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Register pre-packaged UI templates
+  // Pre-load Schema.org ontology graph
+  await SchemaOntology().loadFromAsset();
+  // Register default templates for Article, Product, Person, etc.
   SchemaTemplates.registerDefaultTemplates();
   runApp(const SchemaOrgExampleApp());
 }
@@ -20,7 +22,6 @@ class _SchemaOrgExampleAppState extends State<SchemaOrgExampleApp> {
   bool _isDarkMode = false;
   ValidationReport? _lastReport;
 
-  // Complex multi-entity graph JSON-LD payload with localization and custom types
   final String _sampleJsonLd = '''
   {
     "@context": "https://schema.org",
@@ -45,22 +46,14 @@ class _SchemaOrgExampleAppState extends State<SchemaOrgExampleApp> {
       {
         "@type": "Product",
         "@id": "https://example.com/products/flutter-book#product",
-        "name": [
-          {"@value": "Flutter Architecture Handbook", "@language": "en"},
-          {"@value": "Manuel d'architecture Flutter", "@language": "fr"}
-        ],
+        "name": "Flutter Architecture Handbook",
         "description": "Complete guide for enterprise Flutter developers.",
         "offers": {
           "@type": "Offer",
           "price": "49.99",
           "priceCurrency": "USD",
-          "validFrom": "2026-01-01T00:00:00Z"
+          "availability": "InStock"
         }
-      },
-      {
-        "@type": "MedicalWebPage",
-        "name": "AI Diagnostics in Clinical Software",
-        "lastReviewed": "2026-02-15T00:00:00Z"
       }
     ]
   }
@@ -77,49 +70,62 @@ class _SchemaOrgExampleAppState extends State<SchemaOrgExampleApp> {
         useMaterial3: true,
         brightness: _isDarkMode ? Brightness.dark : Brightness.light,
       ),
-      home: Scaffold(
-        backgroundColor: theme.backgroundColor,
-        appBar: AppBar(
-          title: const Text('Schema.org JSON-LD UI Framework'),
-          actions: [
-            DropdownButton<Locale>(
-              value: _selectedLocale,
-              onChanged: (loc) {
-                if (loc != null) setState(() => _selectedLocale = loc);
-              },
-              items: const [
-                DropdownMenuItem(value: Locale('en'), child: Text('🇬🇧 English')),
-                DropdownMenuItem(value: Locale('fr'), child: Text('🇫🇷 Français')),
+      home: DefaultTabController(
+        length: 4,
+        child: Scaffold(
+          backgroundColor: theme.backgroundColor,
+          appBar: AppBar(
+            title: const Text('Schema.org JSON-LD Framework'),
+            actions: [
+              DropdownButton<Locale>(
+                value: _selectedLocale,
+                onChanged: (loc) {
+                  if (loc != null) setState(() => _selectedLocale = loc);
+                },
+                items: const [
+                  DropdownMenuItem(value: Locale('en'), child: Text('🇬🇧 English')),
+                  DropdownMenuItem(value: Locale('fr'), child: Text('🇫🇷 Français')),
+                ],
+              ),
+              IconButton(
+                icon: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
+                onPressed: () => setState(() => _isDarkMode = !_isDarkMode),
+              ),
+            ],
+            bottom: const TabBar(
+              tabs: [
+                Tab(icon: Icon(Icons.preview), text: 'Dynamic UI'),
+                Tab(icon: Icon(Icons.build_circle_outlined), text: 'Schema Builder'),
+                Tab(icon: Icon(Icons.search), text: 'Explorer'),
+                Tab(icon: Icon(Icons.developer_mode), text: 'Inspector'),
               ],
             ),
-            IconButton(
-              icon: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
-              onPressed: () => setState(() => _isDarkMode = !_isDarkMode),
-            ),
-          ],
-        ),
-        body: Column(
-          children: [
-            if (_lastReport != null) _buildValidationHeader(_lastReport!),
-            Expanded(
-              child: SchemaLdWidget(
-                jsonLd: _sampleJsonLd,
-                locale: _selectedLocale,
-                theme: theme,
-                validationMode: ValidationMode.warning,
-                onValidationReport: (report) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) setState(() => _lastReport = report);
-                  });
-                },
-                onEntityTap: (id) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Tapped entity ID: $id')),
-                  );
-                },
+          ),
+          body: TabBarView(
+            children: [
+              Column(
+                children: [
+                  if (_lastReport != null) _buildValidationHeader(_lastReport!),
+                  Expanded(
+                    child: SchemaLdWidget(
+                      jsonLd: _sampleJsonLd,
+                      locale: _selectedLocale,
+                      theme: theme,
+                      validationMode: ValidationMode.warning,
+                      onValidationReport: (report) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) setState(() => _lastReport = report);
+                        });
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SchemaBuilderWidget(),
+              const SchemaExplorerWidget(),
+              SchemaLdInspectorWidget(jsonLd: _sampleJsonLd),
+            ],
+          ),
         ),
       ),
     );

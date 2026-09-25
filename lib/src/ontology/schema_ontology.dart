@@ -62,6 +62,10 @@ class SchemaOntology {
 
   bool get isLoaded => _isLoaded;
 
+  List<SchemaClass> getAllClasses() => _classes.values.toList();
+  List<SchemaPropertyDef> getAllProperties() => _properties.values.toList();
+  List<SchemaEnumerationMember> getAllEnumerations() => _enumerations.values.toList();
+
   /// Loads ontology from local asset or optional JSON string.
   Future<void> loadFromAsset({String assetPath = 'assets/schemaorg-current-https.jsonld'}) async {
     if (_isLoaded) return;
@@ -124,7 +128,6 @@ class SchemaOntology {
           rangeIncludes: ranges,
         );
       } else {
-        // Potential Enumeration Value
         final enumType = type is List ? type.first.toString() : (type?.toString() ?? '');
         if (enumType.isNotEmpty && enumType.contains('schema:')) {
           _enumerations[id] = SchemaEnumerationMember(
