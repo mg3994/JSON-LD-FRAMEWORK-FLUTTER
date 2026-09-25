@@ -34,7 +34,22 @@ class SchemaPropertyDef {
   });
 }
 
-/// The runtime Schema.org Ontology graph storing classes, properties, domains, and ranges.
+/// Represents a Schema.org Enumeration member (e.g. InStock, EventScheduled).
+class SchemaEnumerationMember {
+  final String id;
+  final String label;
+  final String comment;
+  final String enumType;
+
+  SchemaEnumerationMember({
+    required this.id,
+    required this.label,
+    required this.comment,
+    required this.enumType,
+  });
+}
+
+/// The runtime Schema.org Ontology graph storing classes, properties, enumerations, domains, and ranges.
 class SchemaOntology {
   static final SchemaOntology _instance = SchemaOntology._internal();
   factory SchemaOntology() => _instance;
@@ -42,6 +57,7 @@ class SchemaOntology {
 
   final Map<String, SchemaClass> _classes = {};
   final Map<String, SchemaPropertyDef> _properties = {};
+  final Map<String, SchemaEnumerationMember> _enumerations = {};
   bool _isLoaded = false;
 
   bool get isLoaded => _isLoaded;
@@ -53,7 +69,7 @@ class SchemaOntology {
       final jsonString = await rootBundle.loadString(assetPath);
       parseJsonLdOntology(jsonString);
     } catch (e) {
-      // Fallback or handle if rootBundle is not available (e.g., pure unit test)
+      // Fallback
     }
   }
 
@@ -67,13 +83,14 @@ class SchemaOntology {
     }
   }
 
-  /// Parses raw JSON-LD graph into indexed classes and properties.
+  /// Parses raw JSON-LD graph into indexed classes, properties, and enumerations.
   void parseJsonLdOntology(String jsonString) {
     final Map<String, dynamic> data = jsonDecode(jsonString);
     final List<dynamic> graph = data['@graph'] ?? [];
 
     _classes.clear();
     _properties.clear();
+    _enumerations.clear();
 
     for (final item in graph) {
       if (item is! Map<String, dynamic>) continue;
@@ -106,6 +123,17 @@ class SchemaOntology {
           domainIncludes: domains,
           rangeIncludes: ranges,
         );
+      } else {
+        // Potential Enumeration Value
+        final enumType = type is List ? type.first.toString() : (type?.toString() ?? '');
+        if (enumType.isNotEmpty && enumType.contains('schema:')) {
+          _enumerations[id] = SchemaEnumerationMember(
+            id: id,
+            label: label,
+            comment: comment,
+            enumType: _cleanId(enumType),
+          );
+        }
       }
     }
 
@@ -129,6 +157,16 @@ class SchemaOntology {
     return false;
   }
 
+  /// Returns true if [enumValue] is a valid member of [enumType] (e.g. 'InStock' in 'ItemAvailability').
+  bool isValidEnumerationMember(String enumValue, String enumType) {
+    final cleanVal = _cleanId(enumValue);
+    final cleanType = _cleanId(enumType);
+
+    final member = _enumerations[cleanVal];
+    if (member == null) return false;
+    return member.enumType == cleanType || isSubclassOf(member.enumType, cleanType);
+  }
+
   /// Returns all properties applicable to a specific type (including inherited properties).
   List<SchemaPropertyDef> getPropertiesForType(String typeName) {
     final cleanType = _cleanId(typeName);
@@ -147,6 +185,7 @@ class SchemaOntology {
 
   SchemaClass? getClass(String typeName) => _classes[_cleanId(typeName)];
   SchemaPropertyDef? getProperty(String propName) => _properties[_cleanId(propName)];
+  SchemaEnumerationMember? getEnumerationMember(String memberName) => _enumerations[_cleanId(memberName)];
 
   String _cleanId(dynamic id) {
     if (id == null) return '';

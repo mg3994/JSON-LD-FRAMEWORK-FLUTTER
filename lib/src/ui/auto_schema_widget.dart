@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../graph/graph_topology.dart';
 import '../graph/localized_string.dart';
+import '../ontology/schema_ontology.dart';
 import '../theme/schema_ui_theme.dart';
 import 'schema_widget_registry.dart';
 
@@ -22,13 +23,11 @@ class AutoSchemaWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Check if custom builder is registered in registry for entity types
     final customBuilder = SchemaWidgetRegistry.instance.getBuilderForTypes(entity.types);
     if (customBuilder != null) {
       return customBuilder(context, entity, locale: locale, theme: theme, onEntityTap: onEntityTap);
     }
 
-    // Default Universal Dynamic Schema Card
     return Card(
       elevation: theme.cardElevation,
       color: theme.cardBackgroundColor,
@@ -111,7 +110,7 @@ class AutoSchemaWidget extends StatelessWidget {
     final List<Widget> propWidgets = [];
 
     entity.properties.forEach((key, value) {
-      if (key == 'name' || key == 'headline' || key == 'description') return; // rendered in header
+      if (key == 'name' || key == 'headline' || key == 'description') return;
 
       final propWidget = _renderPropertyValue(context, key, value);
       if (propWidget != null) {
@@ -220,6 +219,26 @@ class AutoSchemaWidget extends StatelessWidget {
 
     final locStr = LocalizedString.from(item);
     final strVal = locStr.resolve(locale);
+
+    // Check if value is a Schema.org Enumeration member
+    final ontology = SchemaOntology();
+    if (ontology.isLoaded) {
+      final enumMember = ontology.getEnumerationMember(strVal);
+      if (enumMember != null) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            border: Border.all(color: Colors.blue.shade300),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            enumMember.label,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+          ),
+        );
+      }
+    }
 
     if (key == 'url' || key == 'sameAs' || key == 'image') {
       return Text(
